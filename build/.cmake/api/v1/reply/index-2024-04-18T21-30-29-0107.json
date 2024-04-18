@@ -8,34 +8,34 @@
 		},
 		"paths" : 
 		{
-			"cmake" : "/home/mhoualla/.vscode/extensions/powertech.powercpp-23.2.24/thirdparty/bin/cmake",
-			"cpack" : "/home/mhoualla/.vscode/extensions/powertech.powercpp-23.2.24/thirdparty/bin/cpack",
-			"ctest" : "/home/mhoualla/.vscode/extensions/powertech.powercpp-23.2.24/thirdparty/bin/ctest",
-			"root" : "/home/mhoualla/.vscode/extensions/powertech.powercpp-23.2.24/thirdparty/share/cmake-3.26"
+			"cmake" : "/usr/bin/cmake",
+			"cpack" : "/usr/bin/cpack",
+			"ctest" : "/usr/bin/ctest",
+			"root" : "/usr/share/cmake"
 		},
 		"version" : 
 		{
 			"isDirty" : false,
 			"major" : 3,
-			"minor" : 26,
-			"patch" : 0,
-			"string" : "3.26.0-rc4",
-			"suffix" : "rc4"
+			"minor" : 29,
+			"patch" : 2,
+			"string" : "3.29.2",
+			"suffix" : ""
 		}
 	},
 	"objects" : 
 	[
 		{
-			"jsonFile" : "codemodel-v2-9f522bdb8ecc8676550b.json",
+			"jsonFile" : "codemodel-v2-8600285340cd4ec2f0ec.json",
 			"kind" : "codemodel",
 			"version" : 
 			{
 				"major" : 2,
-				"minor" : 5
+				"minor" : 7
 			}
 		},
 		{
-			"jsonFile" : "cache-v2-08ec84b53d884c5354c2.json",
+			"jsonFile" : "cache-v2-b812c629116af620985d.json",
 			"kind" : "cache",
 			"version" : 
 			{
@@ -44,7 +44,7 @@
 			}
 		},
 		{
-			"jsonFile" : "cmakeFiles-v1-2f92f92aecfe0bd2ec24.json",
+			"jsonFile" : "cmakeFiles-v1-acd9c3894a2307b77d7f.json",
 			"kind" : "cmakeFiles",
 			"version" : 
 			{
@@ -53,7 +53,7 @@
 			}
 		},
 		{
-			"jsonFile" : "toolchains-v1-7328f5d764ba93cbb22d.json",
+			"jsonFile" : "toolchains-v1-b482cee15e47e1f9faa0.json",
 			"kind" : "toolchains",
 			"version" : 
 			{
@@ -90,7 +90,7 @@
 				"responses" : 
 				[
 					{
-						"jsonFile" : "cache-v2-08ec84b53d884c5354c2.json",
+						"jsonFile" : "cache-v2-b812c629116af620985d.json",
 						"kind" : "cache",
 						"version" : 
 						{
@@ -99,16 +99,16 @@
 						}
 					},
 					{
-						"jsonFile" : "codemodel-v2-9f522bdb8ecc8676550b.json",
+						"jsonFile" : "codemodel-v2-8600285340cd4ec2f0ec.json",
 						"kind" : "codemodel",
 						"version" : 
 						{
 							"major" : 2,
-							"minor" : 5
+							"minor" : 7
 						}
 					},
 					{
-						"jsonFile" : "toolchains-v1-7328f5d764ba93cbb22d.json",
+						"jsonFile" : "toolchains-v1-b482cee15e47e1f9faa0.json",
 						"kind" : "toolchains",
 						"version" : 
 						{
@@ -117,7 +117,7 @@
 						}
 					},
 					{
-						"jsonFile" : "cmakeFiles-v1-2f92f92aecfe0bd2ec24.json",
+						"jsonFile" : "cmakeFiles-v1-acd9c3894a2307b77d7f.json",
 						"kind" : "cmakeFiles",
 						"version" : 
 						{
