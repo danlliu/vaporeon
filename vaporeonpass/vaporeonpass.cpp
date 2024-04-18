@@ -32,7 +32,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   bool isExternalSource(CallInst *CI) {
     // TODO: Generalize this check
     StringRef FuncName = CI->getCalledFunction()->getName();
-    return FuncName == "scanf" || FuncName.start_with_insensitive("read");
+    return FuncName == "scanf" || FuncName.starts_with_insensitive("read");
   }
 
   void markTainted(Value *V) {
