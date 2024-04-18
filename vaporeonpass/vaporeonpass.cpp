@@ -10,6 +10,7 @@
 #include "llvm/Analysis/MemoryDependenceAnalysis.h"
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/CFG.h"
+#include "llvm/IR/InstIterator.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -17,17 +18,44 @@
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/Scalar/LICM.h"
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
-#include "llvm/Transforms/Utils/SSAUpdater.h"
 
 using namespace llvm;
 
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
+
+  DenseMap<Value *, bool, DenseMapInfo<Value *>> TaintedPointers;
+
+  bool isExternalSource(CallInst *CI) {
+    // TODO: Generalize this check
+    StringRef FuncName = CI->getCalledFunction()->getName();
+    return FuncName == "scanf" || FuncName.start_with_insensitive("read");
+  }
+
+  void markTainted(Value *V) {
+    if (!TaintedPointers.count(V)) {
+      TaintedPointers[V] = true;
+      for (User *U : V->users()) {
+        if (auto *I = dyn_cast<Instruction>(U)) {
+          markTainted(I);
+        }
+      }
+    }
+  }
+
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
+    for (Instruction &I : instructions(F)) {
+      if (auto *CI = dyn_cast<CallInst>(&I)) {
+        if (isExternalSource(CI)) {
+          if (Value *RetVal = CI) {
+            markTainted(RetVal);
+          }
+        }
+      }
+    }
     return PreservedAnalyses::none();
   }
 };
