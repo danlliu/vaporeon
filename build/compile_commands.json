@@ -1,8 +1,0 @@
-[
-{
-  "directory": "/home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/build",
-  "command": "/usr/bin/clang++ -D_GNU_SOURCE -D__STDC_CONSTANT_MACROS -D__STDC_FORMAT_MACROS -D__STDC_LIMIT_MACROS -g -fPIC  -fno-exceptions -funwind-tables -o vaporeonpass/CMakeFiles/VaporeonPass.dir/vaporeonpass.cpp.o -c /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass/vaporeonpass.cpp",
-  "file": "/home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass/vaporeonpass.cpp",
-  "output": "vaporeonpass/CMakeFiles/VaporeonPass.dir/vaporeonpass.cpp.o"
-}
-]

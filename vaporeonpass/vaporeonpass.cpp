@@ -27,35 +27,56 @@ using namespace llvm;
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
-  DenseMap<Value *, bool, DenseMapInfo<Value *>> TaintedPointers;
+  DenseMap<Value *, bool> TaintedPointers;
 
-  bool isExternalSource(CallInst *CI) {
-    // TODO: Generalize this check
-    StringRef FuncName = CI->getCalledFunction()->getName();
-    return FuncName == "scanf" || FuncName.starts_with_insensitive("read");
+  bool isExternalSource(const Function *F) {
+    static const DenseSet<StringRef> Sources = {"scanf", "fgets", "read"};
+    return Sources.contains(F->getName());
   }
 
   void markTainted(Value *V) {
-    if (!TaintedPointers.count(V)) {
-      TaintedPointers[V] = true;
+    if (TaintedPointers.insert({V, true})
+            .second) { // Insert if not already marked
       for (User *U : V->users()) {
-        if (auto *I = dyn_cast<Instruction>(U)) {
-          markTainted(I);
+        if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+          if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
+            // Only propagate taint to return value or global variables
+            if (CI->getCalledFunction() == nullptr ||
+                CI->getCalledFunction()->isDeclaration()) {
+              markTainted(Inst);
+            }
+          } else {
+            markTainted(Inst);
+          }
         }
+      }
+    }
+  }
+
+  void identifyTaintedPointers(Function &F) {
+    for (Instruction &I : instructions(F)) {
+      if (auto *CI = dyn_cast<CallInst>(&I)) {
+        if (isExternalSource(CI->getCalledFunction())) {
+          // Mark all arguments as tainted
+          for (unsigned i = 0, e = CI->getNumOperands(); i != e; ++i) {
+            markTainted(CI->getArgOperand(i));
+          }
+        }
+      }
+    }
+  }
+
+  void printTaintedPointers(Function &F) {
+    for (Instruction &I : instructions(F)) {
+      if (TaintedPointers.count(&I)) {
+        dbgs() << "Tainted: " << I << "\n";
       }
     }
   }
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-    for (Instruction &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I)) {
-        if (isExternalSource(CI)) {
-          if (Value *RetVal = CI) {
-            markTainted(RetVal);
-          }
-        }
-      }
-    }
+    identifyTaintedPointers(F);
+    printTaintedPointers(F);
     return PreservedAnalyses::none();
   }
 };
