@@ -21,8 +21,11 @@
 #include "llvm/Transforms/Scalar/LoopPassManager.h"
 #include "llvm/Transforms/Utils/BasicBlockUtils.h"
 #include "llvm/Transforms/Utils/LoopUtils.h"
+#include <iostream>
 
 using namespace llvm;
+
+bool PRINTDEBUG = true;
 
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
@@ -35,12 +38,11 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   }
 
   void markTainted(Value *V) {
-    if (TaintedPointers.insert({V, true})
-            .second) { // Insert if not already marked
+    if (TaintedPointers.insert({V, true}).second) {
       for (User *U : V->users()) {
         if (Instruction *Inst = dyn_cast<Instruction>(U)) {
           if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
-            // Only propagate taint to return value or global variables
+            // propagate taint to return value or global variables
             if (CI->getCalledFunction() == nullptr ||
                 CI->getCalledFunction()->isDeclaration()) {
               markTainted(Inst);
@@ -56,10 +58,14 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   void identifyTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
       if (auto *CI = dyn_cast<CallInst>(&I)) {
-        if (isExternalSource(CI->getCalledFunction())) {
-          // Mark all arguments as tainted
-          for (unsigned i = 0, e = CI->getNumOperands(); i != e; ++i) {
-            markTainted(CI->getArgOperand(i));
+        if (CI->getCalledFunction() &&
+            isExternalSource(CI->getCalledFunction())) {
+          unsigned numOperands = CI->getNumOperands() - 1;
+          for (unsigned i = 0; i < numOperands; ++i) {
+            Value *argVal = CI->getArgOperand(i);
+            if (argVal) {
+              markTainted(argVal);
+            }
           }
         }
       }
@@ -76,7 +82,9 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
     identifyTaintedPointers(F);
-    printTaintedPointers(F);
+    if (PRINTDEBUG) {
+      printTaintedPointers(F);
+    }
     return PreservedAnalyses::none();
   }
 };
