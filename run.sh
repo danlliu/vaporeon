@@ -1,5 +1,5 @@
 #!/bin/bash
-PLUGIN_PATH="vaporeonpass/vaporeonpass/VaporeonPass.so"
+PLUGIN_PATH="vaporeonpass/VaporeonPass.so"
 TEST_DIR="tests"
 
 if [ ! -f "$PLUGIN_PATH" ]; then

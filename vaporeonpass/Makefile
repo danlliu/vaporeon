@@ -57,10 +57,10 @@ RM = /usr/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon
+CMAKE_SOURCE_DIR = /home/daniel/Desktop/eecs/EECS583/vaporeon
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass
+CMAKE_BINARY_DIR = /home/daniel/Desktop/eecs/EECS583/vaporeon
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -132,14 +132,14 @@ install/strip/fast: preinstall/fast
 
 # The main all target
 all: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass/CMakeFiles /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass//CMakeFiles/progress.marks
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 all
-	$(CMAKE_COMMAND) -E cmake_progress_start /home/mhoualla/Desktop/EECS583/llvm-project/vaporeon/vaporeonpass/CMakeFiles 0
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(CMAKE_COMMAND) -E cmake_progress_start /home/daniel/Desktop/eecs/EECS583/vaporeon/CMakeFiles /home/daniel/Desktop/eecs/EECS583/vaporeon/vaporeonpass//CMakeFiles/progress.marks
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /home/daniel/Desktop/eecs/EECS583/vaporeon/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
 clean:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 clean
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/clean
 .PHONY : clean
 
 # The main clean target
@@ -148,109 +148,84 @@ clean/fast: clean
 
 # Prepare targets for installation.
 preinstall: all
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 preinstall
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/preinstall
 .PHONY : preinstall
 
 # Prepare targets for installation.
 preinstall/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 preinstall
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/preinstall
 .PHONY : preinstall/fast
 
 # clear depends
 depend:
-	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
 .PHONY : depend
 
-#=============================================================================
-# Target rules for targets named intrinsics_gen
+# Convenience name for target.
+vaporeonpass/CMakeFiles/VaporeonPass.dir/rule:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/CMakeFiles/VaporeonPass.dir/rule
+.PHONY : vaporeonpass/CMakeFiles/VaporeonPass.dir/rule
 
-# Build rule for target.
-intrinsics_gen: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 intrinsics_gen
-.PHONY : intrinsics_gen
-
-# fast build rule for target.
-intrinsics_gen/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/intrinsics_gen.dir/build.make CMakeFiles/intrinsics_gen.dir/build
-.PHONY : intrinsics_gen/fast
-
-#=============================================================================
-# Target rules for targets named omp_gen
-
-# Build rule for target.
-omp_gen: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 omp_gen
-.PHONY : omp_gen
-
-# fast build rule for target.
-omp_gen/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/omp_gen.dir/build.make CMakeFiles/omp_gen.dir/build
-.PHONY : omp_gen/fast
-
-#=============================================================================
-# Target rules for targets named acc_gen
-
-# Build rule for target.
-acc_gen: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 acc_gen
-.PHONY : acc_gen
-
-# fast build rule for target.
-acc_gen/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/acc_gen.dir/build.make CMakeFiles/acc_gen.dir/build
-.PHONY : acc_gen/fast
-
-#=============================================================================
-# Target rules for targets named RISCVTargetParserTableGen
-
-# Build rule for target.
-RISCVTargetParserTableGen: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 RISCVTargetParserTableGen
-.PHONY : RISCVTargetParserTableGen
-
-# fast build rule for target.
-RISCVTargetParserTableGen/fast:
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/RISCVTargetParserTableGen.dir/build.make CMakeFiles/RISCVTargetParserTableGen.dir/build
-.PHONY : RISCVTargetParserTableGen/fast
-
-#=============================================================================
-# Target rules for targets named VaporeonPass
-
-# Build rule for target.
-VaporeonPass: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 VaporeonPass
+# Convenience name for target.
+VaporeonPass: vaporeonpass/CMakeFiles/VaporeonPass.dir/rule
 .PHONY : VaporeonPass
 
 # fast build rule for target.
 VaporeonPass/fast:
-	$(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/VaporeonPass.dir/build
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/VaporeonPass.dir/build
 .PHONY : VaporeonPass/fast
 
-#=============================================================================
-# Target rules for targets named install-VaporeonPass
+# Convenience name for target.
+vaporeonpass/CMakeFiles/install-VaporeonPass.dir/rule:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/CMakeFiles/install-VaporeonPass.dir/rule
+.PHONY : vaporeonpass/CMakeFiles/install-VaporeonPass.dir/rule
 
-# Build rule for target.
-install-VaporeonPass: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 install-VaporeonPass
+# Convenience name for target.
+install-VaporeonPass: vaporeonpass/CMakeFiles/install-VaporeonPass.dir/rule
 .PHONY : install-VaporeonPass
 
 # fast build rule for target.
 install-VaporeonPass/fast:
-	$(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/install-VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/install-VaporeonPass.dir/build
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/install-VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/install-VaporeonPass.dir/build
 .PHONY : install-VaporeonPass/fast
 
-#=============================================================================
-# Target rules for targets named install-VaporeonPass-stripped
+# Convenience name for target.
+vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/rule:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/rule
+.PHONY : vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/rule
 
-# Build rule for target.
-install-VaporeonPass-stripped: cmake_check_build_system
-	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 install-VaporeonPass-stripped
+# Convenience name for target.
+install-VaporeonPass-stripped: vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/rule
 .PHONY : install-VaporeonPass-stripped
 
 # fast build rule for target.
 install-VaporeonPass-stripped/fast:
-	$(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/build.make vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/build
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/build.make vaporeonpass/CMakeFiles/install-VaporeonPass-stripped.dir/build
 .PHONY : install-VaporeonPass-stripped/fast
+
+vaporeonpass.o: vaporeonpass.cpp.o
+.PHONY : vaporeonpass.o
+
+# target to build an object file
+vaporeonpass.cpp.o:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/VaporeonPass.dir/vaporeonpass.cpp.o
+.PHONY : vaporeonpass.cpp.o
+
+vaporeonpass.i: vaporeonpass.cpp.i
+.PHONY : vaporeonpass.i
+
+# target to preprocess a source file
+vaporeonpass.cpp.i:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/VaporeonPass.dir/vaporeonpass.cpp.i
+.PHONY : vaporeonpass.cpp.i
+
+vaporeonpass.s: vaporeonpass.cpp.s
+.PHONY : vaporeonpass.s
+
+# target to generate assembly for a file
+vaporeonpass.cpp.s:
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(MAKE) $(MAKESILENT) -f vaporeonpass/CMakeFiles/VaporeonPass.dir/build.make vaporeonpass/CMakeFiles/VaporeonPass.dir/vaporeonpass.cpp.s
+.PHONY : vaporeonpass.cpp.s
 
 # Help Target
 help:
@@ -264,13 +239,12 @@ help:
 	@echo "... install/strip"
 	@echo "... list_install_components"
 	@echo "... rebuild_cache"
-	@echo "... RISCVTargetParserTableGen"
-	@echo "... acc_gen"
 	@echo "... install-VaporeonPass"
 	@echo "... install-VaporeonPass-stripped"
-	@echo "... intrinsics_gen"
-	@echo "... omp_gen"
 	@echo "... VaporeonPass"
+	@echo "... vaporeonpass.o"
+	@echo "... vaporeonpass.i"
+	@echo "... vaporeonpass.s"
 .PHONY : help
 
 
@@ -282,6 +256,6 @@ help:
 # No rule that depends on this can have commands that come from listfiles
 # because they might be regenerated.
 cmake_check_build_system:
-	$(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
+	cd /home/daniel/Desktop/eecs/EECS583/vaporeon && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
 .PHONY : cmake_check_build_system
 

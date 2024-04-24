@@ -30,7 +30,7 @@ bool PRINTDEBUG = true;
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
-  DenseMap<Value *, bool> TaintedPointers;
+  DenseSet<Value *> TaintedPointers;
 
   // https://stackoverflow.com/questions/26558197/unsafe-c-functions-and-the-replacement
   bool isExternalSource(const Function *F) {
@@ -44,7 +44,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   }
 
   void markTainted(Value *V) {
-    if (TaintedPointers.insert({V, true}).second) {
+    if (TaintedPointers.insert(V).second) {
       for (User *U : V->users()) {
         if (Instruction *Inst = dyn_cast<Instruction>(U)) {
           if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
@@ -72,6 +72,24 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
             }
           }
         }
+      }
+    }
+
+    // Propagation of tainted pointer status
+    std::deque<Value *> propagation(std::begin(TaintedPointers),
+                                    std::end(TaintedPointers));
+    dbgs() << "[STAGE 2: Tainted Pointer Propagation]\n";
+    while (!propagation.empty()) {
+      auto taint = propagation.front();
+      propagation.pop_front();
+      dbgs() << "Found tainted pointer " << *taint << "\n";
+      for (auto use : taint->users()) {
+        if (TaintedPointers.contains(use))
+          continue;
+        dbgs() << "  Marking " << *use << " as tainted because it uses "
+               << *taint << "\n";
+        markTainted(use);
+        propagation.push_back(use);
       }
     }
   }
