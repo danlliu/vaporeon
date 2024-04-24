@@ -11,6 +11,7 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/InstIterator.h"
+#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -32,6 +33,11 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   DenseSet<Value *> TaintedPointers;
 
+  // Multipass 
+  // Set of all tainted functions 
+  // populate this beforehand 
+  // then do a second pass and look for specifically ret
+
   // https://stackoverflow.com/questions/26558197/unsafe-c-functions-and-the-replacement
   bool isExternalSource(const Function *F) {
     static const DenseSet<StringRef> Sources = {
@@ -46,14 +52,14 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   void markTainted(Value *V) {
     if (TaintedPointers.insert(V).second) {
       for (User *U : V->users()) {
-        if (Instruction *Inst = dyn_cast<Instruction>(U)) {
-          if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
-            // propagate taint to return value or global variables
-            if (CI->getCalledFunction() == nullptr ||
-                CI->getCalledFunction()->isDeclaration()) {
-              markTainted(Inst);
-            }
+        auto *FunctionUserBelongsTo = dyn_cast<Instruction>(U)->getFunction();
+        if (FunctionUserBelongsTo) {
+          if (PRINTDEBUG) {
+            dbgs() << "Marking " << *U << " as tainted because it uses " << *V
+                   << "\n";
           }
+          auto *FunctionOutput = FunctionUserBelongsTo->getReturnType();
+          markTainted(U);
         }
       }
     }
