@@ -58,8 +58,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
             dbgs() << "Marking " << *U << " as tainted because it uses " << *V
                    << "\n";
           }
-          auto *FunctionOutput = FunctionUserBelongsTo->getReturnType();
-          TaintedPointers.insert(FunctionOutput);
+          TaintedPointers.insert(FunctionUserBelongsTo);
         }
       }
     }
