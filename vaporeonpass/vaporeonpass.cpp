@@ -84,6 +84,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
       propagation.pop_front();
       dbgs() << "Found tainted pointer " << *taint << "\n";
       for (auto use : taint->users()) {
+        dbgs() << "  Found a user " << *use << "\n";
         if (TaintedPointers.contains(use))
           continue;
         dbgs() << "  Marking " << *use << " as tainted because it uses "
@@ -96,7 +97,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   void printTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
-      if (TaintedPointers.count(&I)) {
+      if (TaintedPointers.contains(&I)) {
         dbgs() << "Tainted: " << I << "\n";
       }
     }
