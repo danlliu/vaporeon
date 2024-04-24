@@ -59,7 +59,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                    << "\n";
           }
           auto *FunctionOutput = FunctionUserBelongsTo->getReturnType();
-          markTainted(U);
+          TaintedPointers.insert(FunctionOutput);
         }
       }
     }
