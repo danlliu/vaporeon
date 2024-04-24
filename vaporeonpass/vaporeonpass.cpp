@@ -48,6 +48,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
               markTainted(Inst);
             }
           } else {
+            // this needs to be not be in an else block
             markTainted(Inst);
           }
         }
