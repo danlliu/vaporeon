@@ -32,9 +32,15 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   DenseMap<Value *, bool> TaintedPointers;
 
+  // https://stackoverflow.com/questions/26558197/unsafe-c-functions-and-the-replacement
   bool isExternalSource(const Function *F) {
-    static const DenseSet<StringRef> Sources = {"scanf", "fgets", "read"};
+    static const DenseSet<StringRef> Sources = {
+        "scanf",    "fgets",   "read",     "gets",     "sprintf",
+        "vsprintf", "strncat", "copy_buf", "makepath", "_splitpath",
+        "sscanf",   "strlen",  "strncpy",  "strcpy",   "read_chunk"};
     return Sources.contains(F->getName());
+
+    // TODO: We should also check for user input from files, network, etc.
   }
 
   void markTainted(Value *V) {
