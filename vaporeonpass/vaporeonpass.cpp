@@ -115,9 +115,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     // are there other memory write instructions?
 
     // else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
-    //   if(MI->getRawDest() == V){
-    //     markMemoryTainted(V);
-    //   }
+    //   return MI->getRawDest() == V;
     // }
     return false;
   }
