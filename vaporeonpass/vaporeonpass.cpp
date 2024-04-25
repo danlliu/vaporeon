@@ -11,7 +11,6 @@
 #include "llvm/Analysis/ScalarEvolution.h"
 #include "llvm/IR/CFG.h"
 #include "llvm/IR/InstIterator.h"
-#include "llvm/IR/Instruction.h"
 #include "llvm/IR/Instructions.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/PassManager.h"
@@ -32,11 +31,7 @@ namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   DenseSet<Value *> TaintedPointers;
-
-  // Multipass 
-  // Set of all tainted functions 
-  // populate this beforehand 
-  // then do a second pass and look for specifically ret
+  DenseSet<Value *> MWTaintedPointers;
 
   // https://stackoverflow.com/questions/26558197/unsafe-c-functions-and-the-replacement
   bool isExternalSource(const Function *F) {
@@ -50,40 +45,23 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
   }
 
   void markTainted(Value *V) {
-    if (TaintedPointers.insert(V).second) {
-      for (User *U : V->users()) {
-        auto *FunctionUserBelongsTo = dyn_cast<Instruction>(U)->getFunction();
-        if (FunctionUserBelongsTo) {
-          if (PRINTDEBUG) {
-            dbgs() << "Marking " << *U << " as tainted because it uses " << *V
-                   << "\n";
-          }
-          TaintedPointers.insert(FunctionUserBelongsTo);
-        }
-      }
-    }
+    TaintedPointers.insert(V);
+    // if (TaintedPointers.insert(V).second) {
+    //   for (User *U : V->users()) {
+    //     if (Instruction *Inst = dyn_cast<Instruction>(U)) {
+    //       if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
+    //         // propagate taint to return value or global variables
+    //         if (CI->getCalledFunction() == nullptr ||
+    //             CI->getCalledFunction()->isDeclaration()) {
+    //           markTainted(Inst);
+    //         }
+    //       }
+    //     }
+    //   }
+    // }
   }
 
-  bool isMemoryWrite(Instruction &I){
-
-  }
-
-  void identifyTaintedPointers(Function &F) {
-    for (Instruction &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I)) {
-        if (CI->getCalledFunction() &&
-            isExternalSource(CI->getCalledFunction())) {
-          unsigned numOperands = CI->getNumOperands() - 1;
-          for (unsigned i = 0; i < numOperands; ++i) {
-            Value *argVal = CI->getArgOperand(i);
-            if (argVal) {
-              markTainted(argVal);
-            }
-          }
-        }
-      }
-    }
-
+  void propagateTaintedPointers() {
     // Propagation of tainted pointer status
     std::deque<Value *> propagation(std::begin(TaintedPointers),
                                     std::end(TaintedPointers));
@@ -103,8 +81,47 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     }
   }
 
-  void identifyMemoryWrites(){
-    
+  void identifyTaintedPointers(Function &F) {
+    for (Instruction &I : instructions(F)) {
+      if (auto *CI = dyn_cast<CallInst>(&I)) {
+        if (CI->getCalledFunction() &&
+            isExternalSource(CI->getCalledFunction())) {
+          unsigned numOperands = CI->getNumOperands() - 1;
+          for (unsigned i = 0; i < numOperands; ++i) {
+            Value *argVal = CI->getArgOperand(i);
+            if (argVal) {
+              markTainted(argVal);
+            }
+          }
+        }
+      }
+    }
+
+    propagateTaintedPointers();
+  }
+
+  bool isMemoryWrite(Value *V, Instruction &I) {
+    if (auto *SI = dyn_cast<StoreInst>(&I)) {
+      return SI->getPointerOperand() == V;
+    }
+    // are there other memory write instructions?
+    // else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
+    //   if(MI->getRawDest() == V){
+    //     markMemoryTainted(V);
+    //   }
+    // }
+  }
+
+  void markMemoryTainted(Value *V) { MWTaintedPointers.insert(V); }
+
+  void identifyMemoryWrites(Function &F) {
+    for (Instruction &I : instructions(F)) {
+      for (Value *V : TaintedPointers) {
+        if (isMemoryWrite(V, I)) {
+          markMemoryTainted(V);
+        }
+      }
+    }
   }
 
   void printTaintedPointers(Function &F) {
@@ -115,11 +132,26 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     }
   }
 
+  void printMWTaintedPointers(Function &F) {
+    for (Instruction &I : instructions(F)) {
+      if (MWTaintedPointers.count(&I)) {
+        dbgs() << "MWTainted: " << I << "\n";
+      }
+    }
+  }
+
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
     identifyTaintedPointers(F);
     if (PRINTDEBUG) {
+      dbgs() << "BEFORE MEMORY WRITER\n";
       printTaintedPointers(F);
     }
+    identifyMemoryWrites(F);
+    if (PRINTDEBUG) {
+      dbgs() << "AFTER MEMORY WRITER\n";
+      printMWTaintedPointers(F);
+    }
+
     return PreservedAnalyses::none();
   }
 };
