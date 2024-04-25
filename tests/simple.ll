@@ -1,13 +1,13 @@
 ; ModuleID = 'tests/simple.c'
 source_filename = "tests/simple.c"
 target datalayout = "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-f80:128-n8:16:32:64-S128"
-target triple = "x86_64-pc-linux-gnu"
+target triple = "x86_64-unknown-linux-gnu"
 
 @.str = private unnamed_addr constant [20 x i8] c"Buffer content: %s\0A\00", align 1
 @.str.1 = private unnamed_addr constant [19 x i8] c"Enter some input: \00", align 1
 @stdin = external global ptr, align 8
 
-; Function Attrs: noinline nounwind sspstrong uwtable
+; Function Attrs: noinline nounwind uwtable
 define dso_local void @sensitiveFunction(ptr noundef %0) #0 {
   %2 = alloca ptr, align 8
   %3 = alloca [50 x i8], align 16
@@ -25,7 +25,7 @@ declare ptr @strcpy(ptr noundef, ptr noundef) #1
 
 declare i32 @printf(ptr noundef, ...) #2
 
-; Function Attrs: noinline nounwind sspstrong uwtable
+; Function Attrs: noinline nounwind uwtable
 define dso_local void @processInput(ptr noundef %0) #0 {
   %2 = alloca ptr, align 8
   %3 = alloca [100 x i8], align 16
@@ -38,7 +38,7 @@ define dso_local void @processInput(ptr noundef %0) #0 {
   ret void
 }
 
-; Function Attrs: noinline nounwind sspstrong uwtable
+; Function Attrs: noinline nounwind uwtable
 define dso_local i32 @main() #0 {
   %1 = alloca i32, align 4
   %2 = alloca [100 x i8], align 16
@@ -54,7 +54,7 @@ define dso_local i32 @main() #0 {
 
 declare ptr @fgets(ptr noundef, i32 noundef, ptr noundef) #2
 
-attributes #0 = { noinline nounwind sspstrong uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
+attributes #0 = { noinline nounwind uwtable "frame-pointer"="all" "min-legal-vector-width"="0" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #1 = { nounwind "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #2 = { "frame-pointer"="all" "no-trapping-math"="true" "stack-protector-buffer-size"="8" "target-cpu"="x86-64" "target-features"="+cmov,+cx8,+fxsr,+mmx,+sse,+sse2,+x87" "tune-cpu"="generic" }
 attributes #3 = { nounwind }

@@ -104,12 +104,22 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     if (auto *SI = dyn_cast<StoreInst>(&I)) {
       return SI->getPointerOperand() == V;
     }
+    if (auto *CI = dyn_cast<CallInst>(&I)) {
+      if (CI->getCalledFunction()) {
+        unsigned numOperands = CI->getNumOperands() - 1;
+        for (unsigned i = 0; i < numOperands; ++i) {
+          return CI->getArgOperand(i) == V;
+        }
+      }
+    }
     // are there other memory write instructions?
+
     // else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
     //   if(MI->getRawDest() == V){
     //     markMemoryTainted(V);
     //   }
     // }
+    return false;
   }
 
   void markMemoryTainted(Value *V) { MWTaintedPointers.insert(V); }
