@@ -64,6 +64,10 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     }
   }
 
+  bool isMemoryWrite(Instruction &I){
+
+  }
+
   void identifyTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
       if (auto *CI = dyn_cast<CallInst>(&I)) {
@@ -89,7 +93,6 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
       propagation.pop_front();
       dbgs() << "Found tainted pointer " << *taint << "\n";
       for (auto use : taint->users()) {
-        dbgs() << "  Found a user " << *use << "\n";
         if (TaintedPointers.contains(use))
           continue;
         dbgs() << "  Marking " << *use << " as tainted because it uses "
@@ -100,9 +103,13 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     }
   }
 
+  void identifyMemoryWrites(){
+    
+  }
+
   void printTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
-      if (TaintedPointers.contains(&I)) {
+      if (TaintedPointers.count(&I)) {
         dbgs() << "Tainted: " << I << "\n";
       }
     }
