@@ -79,17 +79,24 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
         propagation.push_back(use);
       }
     }
+
+    dbgs() << "\n\n";
   }
 
   void identifyTaintedPointers(Function &F) {
+    dbgs()  << "[STAGE 1: Interface Optimization]\n";
+
     for (Instruction &I : instructions(F)) {
       if (auto *CI = dyn_cast<CallInst>(&I)) {
         if (CI->getCalledFunction() &&
             isExternalSource(CI->getCalledFunction())) {
+
+          dbgs() << "Found external function call " << *CI << "\n";
           unsigned numOperands = CI->getNumOperands() - 1;
           for (unsigned i = 0; i < numOperands; ++i) {
             Value *argVal = CI->getArgOperand(i);
             if (argVal) {
+              dbgs() << "Found tainted pointer " << *argVal << "\n";
               markTainted(argVal);
             }
           }
@@ -100,41 +107,43 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     propagateTaintedPointers();
   }
 
-  bool isMemoryWrite(Value *V, Instruction &I) {
-    if (auto *SI = dyn_cast<StoreInst>(&I)) {
-      return SI->getPointerOperand() == V;
+  void markTaintedIfMemoryWrite(Value *V) {
+    if (auto *SI = dyn_cast<StoreInst>(V)) {
+      markMemoryTainted(V);
     }
-    if (auto *CI = dyn_cast<CallInst>(&I)) {
+    else if (auto *CI = dyn_cast<CallInst>(V)) {
+      markMemoryTainted(V);
       if (CI->getCalledFunction()) {
         unsigned numOperands = CI->getNumOperands() - 1;
         for (unsigned i = 0; i < numOperands; ++i) {
-          return CI->getArgOperand(i) == V;
+          if (TaintedPointers.contains(CI->getArgOperand(i))){
+            markMemoryTainted(CI->getArgOperand(i));
+          }
         }
       }
     }
+    // if (auto *GI = dyn_cast<GetElementPtrInst>(V)){
+    //   return true;
+    // }
+
     // are there other memory write instructions?
 
     // else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
     //   return MI->getRawDest() == V;
     // }
-    return false;
   }
 
   void markMemoryTainted(Value *V) { MWTaintedPointers.insert(V); }
 
   void identifyMemoryWrites(Function &F) {
-    for (Instruction &I : instructions(F)) {
-      for (Value *V : TaintedPointers) {
-        if (isMemoryWrite(V, I)) {
-          markMemoryTainted(V);
-        }
-      }
+    for (Value *V : TaintedPointers) {
+      markTaintedIfMemoryWrite(V);
     }
   }
 
   void printTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
-      if (TaintedPointers.count(&I)) {
+      if (TaintedPointers.contains(&I)) {
         dbgs() << "Tainted: " << I << "\n";
       }
     }
@@ -142,13 +151,14 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
   void printMWTaintedPointers(Function &F) {
     for (Instruction &I : instructions(F)) {
-      if (MWTaintedPointers.count(&I)) {
+      if (MWTaintedPointers.contains(&I)) {
         dbgs() << "MWTainted: " << I << "\n";
       }
     }
   }
 
   PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
+    dbgs() << "Function:\n" << F << "\n\n";
     identifyTaintedPointers(F);
     if (PRINTDEBUG) {
       dbgs() << "BEFORE MEMORY WRITER\n";
@@ -159,6 +169,8 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
       dbgs() << "AFTER MEMORY WRITER\n";
       printMWTaintedPointers(F);
     }
+
+    dbgs() << "\n\n";
 
     return PreservedAnalyses::none();
   }
