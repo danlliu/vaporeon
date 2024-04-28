@@ -185,8 +185,8 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                 dbgs() << " loc_lower = " << *loc_lower
                        << ", loc_size = " << *loc_size << "\n";
                 dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
-                new StoreInst(lower, loc_lower, SI);
-                new StoreInst(size, loc_size, SI);
+                ourStores.insert(new StoreInst(lower, loc_lower, SI));
+                ourStores.insert(new StoreInst(size, loc_size, SI));
                 for (auto use : SI->getPointerOperand()->users()) {
                   dbgs() << " found use of store " << *use << "\n";
                   if (auto LI = dyn_cast<LoadInst>(use)) {
@@ -271,6 +271,8 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
         if (auto *SI = dyn_cast<StoreInst>(&I)) {
           if (ourStores.contains(SI))
             continue;
+          dbgs() << F << "\n";
+
           if (PRINTDEBUG)
             dbgs() << "Found Store " << *SI << "\n";
           auto *ptr = SI->getPointerOperand();
@@ -288,12 +290,13 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
           auto *diff = BinaryOperator::Create(Instruction::Sub, ptrInt,
                                               lowerInt, "", SI);
           auto *cmp = new ICmpInst(SI, ICmpInst::ICMP_UGE, diff, size);
-          auto *br = BranchInst::Create(trapBlock, &BB, cmp, SI);
           // split BB
           auto *new_origBB = BB.splitBasicBlockBefore(SI, "");
+          dbgs() << "AFTER SPLITTING" << "\n";
+          dbgs() << F << "\n";
           auto *new_orig_target = new_origBB->getSingleSuccessor();
-          new_origBB->getTerminator()->removeFromParent();
-          br->setSuccessor(1, new_orig_target);
+          auto *br = BranchInst::Create(trapBlock, new_orig_target, cmp);
+          ReplaceInstWithInst(new_origBB->getTerminator(), br);
         }
       }
     }
