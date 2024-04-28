@@ -3,6 +3,7 @@
 
 int main() {
   char buffer[4];
-  buffer[3] = 5;
+  int idx = 5;
+  buffer[idx] = 5;
   return 0;
 }

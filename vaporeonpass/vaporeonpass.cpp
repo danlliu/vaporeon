@@ -25,154 +25,282 @@
 
 using namespace llvm;
 
-bool PRINTDEBUG = true;
+constexpr bool PRINTDEBUG = true;
 
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
 
-  DenseSet<Value *> TaintedPointers;
-  DenseSet<Value *> MWTaintedPointers;
+  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
+    std::vector<StoreInst *> stores;
+    struct FatPointer {
+      Value *lower, *size;
+    };
+    DenseMap<Value *, FatPointer> bounds;
+    DenseMap<Value *, FatPointer> localVariableBounds;
+    std::deque<Instruction *> bfs;
 
-  // https://stackoverflow.com/questions/26558197/unsafe-c-functions-and-the-replacement
-  bool isExternalSource(const Function *F) {
-    static const DenseSet<StringRef> Sources = {
-        "scanf",    "fgets",   "read",     "gets",     "sprintf",
-        "vsprintf", "strncat", "copy_buf", "makepath", "_splitpath",
-        "sscanf",   "strlen",  "strncpy",  "strcpy",   "read_chunk"};
-    return Sources.contains(F->getName());
+    Type *index_type = llvm::Type::getInt32Ty(F.getContext());
+    Type *size_type = llvm::Type::getInt64Ty(F.getContext());
+    Instruction *alloca_insertion_point = nullptr;
 
-    // TODO: We should also check for user input from files, network, etc.
-  }
+    {
+      dbgs() << "Starting VAPOREON pass\n";
+      std::vector<AllocaInst *> to_fixup;
 
-  void markTainted(Value *V) {
-    TaintedPointers.insert(V);
-    // if (TaintedPointers.insert(V).second) {
-    //   for (User *U : V->users()) {
-    //     if (Instruction *Inst = dyn_cast<Instruction>(U)) {
-    //       if (CallInst *CI = dyn_cast<CallInst>(Inst)) {
-    //         // propagate taint to return value or global variables
-    //         if (CI->getCalledFunction() == nullptr ||
-    //             CI->getCalledFunction()->isDeclaration()) {
-    //           markTainted(Inst);
-    //         }
-    //       }
-    //     }
-    //   }
-    // }
-  }
+      // Step 0: incoming parameters
 
-  void propagateTaintedPointers() {
-    // Propagation of tainted pointer status
-    std::deque<Value *> propagation(std::begin(TaintedPointers),
-                                    std::end(TaintedPointers));
-    dbgs() << "[STAGE 2: Tainted Pointer Propagation]\n";
-    while (!propagation.empty()) {
-      auto taint = propagation.front();
-      propagation.pop_front();
-      dbgs() << "Found tainted pointer " << *taint << "\n";
-      for (auto use : taint->users()) {
-        if (TaintedPointers.contains(use))
-          continue;
-        dbgs() << "  Marking " << *use << " as tainted because it uses "
-               << *taint << "\n";
-        markTainted(use);
-        propagation.push_back(use);
+      auto insertionPoint = &*F.getEntryBlock().getFirstNonPHIOrDbgOrAlloca();
+      dbgs() << "[Step 0] fix up parameters\n";
+      for (auto &param : F.args()) {
+        if (param.getType()->isPointerTy()) {
+          Type *ptr_type = param.getType();
+          dbgs() << "ptr_type = " << *ptr_type << "\n";
+          dbgs() << "size_type = " << *size_type << "\n";
+          auto fatpointer_type = StructType::create(F.getContext(), "fatptr_t");
+          fatpointer_type->setBody({ptr_type, ptr_type, size_type}, false);
+
+          std::vector<User*> users;
+          for (auto u : param.users()) users.push_back(u);
+
+          auto addr = GetElementPtrInst::Create(
+              ptr_type, &param,
+              {Constant::getIntegerValue(index_type, APInt(32, 1))},
+              "unpack_lower", insertionPoint);
+          auto lower = new LoadInst(ptr_type, addr, "", insertionPoint);
+          dbgs() << "lower = " << *lower << "\n";
+
+          auto addr2 = GetElementPtrInst::Create(
+              size_type, &param,
+              {Constant::getIntegerValue(index_type, APInt(32, 2))},
+              "unpack_size", insertionPoint);
+          auto size = new LoadInst(size_type, addr2, "", insertionPoint);
+          dbgs() << "size = " << *size << "\n";
+
+          auto addr3 = GetElementPtrInst::Create(
+              ptr_type, &param,
+              {Constant::getIntegerValue(index_type, APInt(32, 0))},
+              "unpack_ptr", insertionPoint);
+          auto raw_pointer = new LoadInst(ptr_type, addr3, "", insertionPoint);
+
+          for (auto u : users) {
+            u->replaceUsesOfWith(&param, raw_pointer);
+          }
+
+          dbgs() << "raw = " << *raw_pointer << "\n";
+          bounds[raw_pointer] = {lower, size};
+          bfs.emplace_back(raw_pointer);
+        }
+      }
+
+      dbgs() << "[Step 1] find all allocas\n";
+      // Step 1: find all allocas
+      for (auto &BB : F) {
+        for (auto &I : BB) {
+          if (auto *AI = dyn_cast<AllocaInst>(&I)) {
+            if (PRINTDEBUG)
+              dbgs() << "Found Alloca " << *AI << "\n";
+            auto alloc_type = AI->getAllocatedType();
+            alloca_insertion_point = AI->getNextNonDebugInstruction();
+            if (alloc_type->isArrayTy()) {
+              size_t alloc_size = alloc_type->getArrayNumElements();
+              if (PRINTDEBUG)
+                dbgs() << "instruction allocates " << alloc_size
+                       << " element(s)\n";
+              auto InsertionPoint = AI->getNextNonDebugInstruction();
+              if (!InsertionPoint) {
+                dbgs() << "No insertion point found...\n";
+              }
+
+              // Store allocated value into lower
+              auto idx = Constant::getIntegerValue(
+                  Type::getInt64Ty(F.getContext()), APInt(64, alloc_size));
+              bounds[AI] = {AI, idx};
+              bfs.emplace_back(AI);
+            } else if (alloc_type->isPointerTy()) {
+              to_fixup.emplace_back(AI);
+            }
+          }
+        }
+      }
+
+      dbgs() << "[Step 1] add bounds\n";
+      for (auto AI : to_fixup) {
+        auto alloc_type = AI->getAllocatedType();
+        auto lowerAlloc = new AllocaInst(
+            alloc_type, alloc_type->getPointerAddressSpace(), "loc_lower", AI);
+        auto sizeAlloc = new AllocaInst(Type::getInt64Ty(F.getContext()),
+                                        alloc_type->getPointerAddressSpace(),
+                                        "loc_size", AI);
+        localVariableBounds[AI] = {lowerAlloc, sizeAlloc};
+        dbgs() << "Added local variable bounds for " << *AI << "\n";
       }
     }
 
-    dbgs() << "\n\n";
-  }
+    DenseSet<Instruction *> visited;
+    DenseSet<StoreInst *> ourStores;
 
-  void identifyTaintedPointers(Function &F) {
-    dbgs()  << "[STAGE 1: Interface Optimization]\n";
+    // Step 2: generate code to propagate bounds at runtime
+    while (!bfs.empty()) {
+      auto front = bfs.front();
+      bfs.pop_front();
+      if (visited.contains(front))
+        continue;
+      visited.insert(front);
+      dbgs() << "front = " << *front << "\n";
 
-    for (Instruction &I : instructions(F)) {
-      if (auto *CI = dyn_cast<CallInst>(&I)) {
-        if (CI->getCalledFunction() &&
-            isExternalSource(CI->getCalledFunction())) {
+      auto [lower, size] = bounds[front];
 
-          dbgs() << "Found external function call " << *CI << "\n";
-          unsigned numOperands = CI->getNumOperands() - 1;
-          for (unsigned i = 0; i < numOperands; ++i) {
-            Value *argVal = CI->getArgOperand(i);
-            if (argVal) {
-              dbgs() << "Found tainted pointer " << *argVal << "\n";
-              markTainted(argVal);
+      for (auto Use : front->users()) {
+        dbgs() << "found use " << *Use << "\n";
+        if (auto Inst = dyn_cast<Instruction>(Use)) {
+          // some instruction is using this value, propagate bounds
+          if (Inst->getOpcode() == Instruction::PHI) {
+            if (bounds.contains(Inst)) {
+              // we already found it in a prior pass, now we need to update
+              // second argument
+              PHINode *lowerPhi = dyn_cast<PHINode>(bounds[Inst].lower);
+              PHINode *sizePhi = dyn_cast<PHINode>(bounds[Inst].size);
+              lowerPhi->setOperand(1, lower);
+              sizePhi->setOperand(1, size);
+            } else {
+              // first time finding this phi, initialize it
+              auto InsertionPoint = front->getNextNonDebugInstruction();
+              PHINode *lowerPhi = PHINode::Create(
+                  bounds[front].lower->getType(), 2, "lower", InsertionPoint);
+              PHINode *sizePhi = PHINode::Create(bounds[front].lower->getType(),
+                                                 2, "size", InsertionPoint);
+              lowerPhi->setOperand(0, lower);
+              sizePhi->setOperand(0, size);
+              bounds[Inst] = {lowerPhi, sizePhi};
+              bfs.emplace_back(Inst);
+            }
+          } else {
+            // one potential path, just forward it
+            if (auto SI = dyn_cast<StoreInst>(Inst)) {
+              if (front == SI->getValueOperand() &&
+                  localVariableBounds.contains(SI->getPointerOperand())) {
+                // storing FAT pointer into local variable
+                auto [loc_lower, loc_size] =
+                    localVariableBounds[SI->getPointerOperand()];
+                dbgs() << " loc_lower = " << *loc_lower
+                       << ", loc_size = " << *loc_size << "\n";
+                dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
+                new StoreInst(lower, loc_lower, SI);
+                new StoreInst(size, loc_size, SI);
+                for (auto use : SI->getPointerOperand()->users()) {
+                  dbgs() << " found use of store " << *use << "\n";
+                  if (auto LI = dyn_cast<LoadInst>(use)) {
+                    auto [saved_lower, saved_size] =
+                        localVariableBounds[LI->getPointerOperand()];
+                    auto reload_lower = new LoadInst(LI->getType(), saved_lower,
+                                                     "load_lower", LI);
+                    auto reload_size =
+                        new LoadInst(Type::getInt64Ty(F.getContext()),
+                                     saved_size, "load_size", LI);
+                    bounds[LI] = {reload_lower, reload_size};
+                  }
+                }
+              } else {
+                dbgs() << "how did we get here? " << *SI << "\n";
+              }
+            } else if (auto CI = dyn_cast<CallInst>(Inst)) {
+              for (size_t i = 0; i < CI->arg_size(); ++i) {
+                auto param = CI->getArgOperand(i);
+                if (auto I = dyn_cast<Instruction>(param)) {
+                  if (bounds.contains(I)) {
+                    Type *ptr_type = param->getType();
+                    auto fatpointer_type =
+                        StructType::create(F.getContext(), "fatptr_t");
+                    fatpointer_type->setBody({ptr_type, ptr_type, size_type},
+                                             false);
+                    auto new_param =
+                        new AllocaInst(fatpointer_type, F.getAddressSpace(),
+                                       "param", alloca_insertion_point);
+                    {
+                      auto addr = GetElementPtrInst::Create(
+                          ptr_type, new_param,
+                          {Constant::getIntegerValue(index_type, APInt(32, 0))},
+                          "pack_ptr", CI);
+                      ourStores.insert(new StoreInst(I, addr, CI));
+                    }
+                    {
+                      auto addr = GetElementPtrInst::Create(
+                          ptr_type, new_param,
+                          {Constant::getIntegerValue(index_type, APInt(32, 1))},
+                          "pack_lower", CI);
+                      ourStores.insert(
+                          new StoreInst(bounds[I].lower, addr, CI));
+                    }
+                    {
+                      auto addr = GetElementPtrInst::Create(
+                          size_type, new_param,
+                          {Constant::getIntegerValue(index_type, APInt(32, 2))},
+                          "pack_size", CI);
+                      ourStores.insert(new StoreInst(bounds[I].size, addr, CI));
+                    }
+                    CI->setArgOperand(i, new_param);
+                  }
+                }
+              }
+            } else if (!bounds.contains(Inst)) {
+              dbgs() << "propagating scope for " << *Inst << "\n";
+              dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
+              bounds[Inst] = bounds[front];
+              bfs.emplace_back(Inst);
             }
           }
         }
       }
     }
 
-    propagateTaintedPointers();
-  }
+    // Step 3: create trap blockstepbro
+    auto *trapBlock =
+        BasicBlock::Create(F.getContext(), "helpimtrappedandcantgetout", &F);
+    CallInst::Create(Intrinsic::getDeclaration(F.getParent(), Intrinsic::trap),
+                     {}, "", trapBlock);
 
-  void markTaintedIfMemoryWrite(Value *V) {
-    if (auto *SI = dyn_cast<StoreInst>(V)) {
-      markMemoryTainted(V);
-    }
-    else if (auto *CI = dyn_cast<CallInst>(V)) {
-      markMemoryTainted(V);
-      if (CI->getCalledFunction()) {
-        unsigned numOperands = CI->getNumOperands() - 1;
-        for (unsigned i = 0; i < numOperands; ++i) {
-          if (TaintedPointers.contains(CI->getArgOperand(i))){
-            markMemoryTainted(CI->getArgOperand(i));
-          }
+    if (F.getReturnType()->getTypeID() == Type::VoidTyID)
+      ReturnInst::Create(F.getContext(), nullptr, trapBlock);
+    else
+      ReturnInst::Create(F.getContext(),
+                         Constant::getNullValue(F.getReturnType()), trapBlock);
+
+    // Step 4: bounds check on writes
+    for (auto &BB : F) {
+      for (auto &I : BB) {
+        if (auto *SI = dyn_cast<StoreInst>(&I)) {
+          if (ourStores.contains(SI))
+            continue;
+          if (PRINTDEBUG)
+            dbgs() << "Found Store " << *SI << "\n";
+          auto *ptr = SI->getPointerOperand();
+          dbgs() << "ptr = " << *ptr << "\n";
+          if (!bounds.contains(ptr))
+            continue;
+          auto [lower, size] = bounds.lookup(ptr);
+          dbgs() << "bounds = " << *lower << " " << *size << "\n";
+
+          // if ptr - lower >= size, trap
+          auto *ptrInt =
+              new PtrToIntInst(ptr, Type::getInt64Ty(F.getContext()), "", SI);
+          auto *lowerInt =
+              new PtrToIntInst(lower, Type::getInt64Ty(F.getContext()), "", SI);
+          auto *diff = BinaryOperator::Create(Instruction::Sub, ptrInt,
+                                              lowerInt, "", SI);
+          auto *cmp = new ICmpInst(SI, ICmpInst::ICMP_UGE, diff, size);
+          auto *br = BranchInst::Create(trapBlock, &BB, cmp, SI);
+          // split BB
+          auto *new_origBB = BB.splitBasicBlockBefore(SI, "");
+          auto *new_orig_target = new_origBB->getSingleSuccessor();
+          new_origBB->getTerminator()->removeFromParent();
+          br->setSuccessor(1, new_orig_target);
         }
       }
     }
-    // if (auto *GI = dyn_cast<GetElementPtrInst>(V)){
-    //   return true;
-    // }
 
-    // are there other memory write instructions?
+    dbgs() << F << "\n";
 
-    // else if (auto *MI = dyn_cast<MemIntrinsic>(&I)) {
-    //   return MI->getRawDest() == V;
-    // }
-  }
-
-  void markMemoryTainted(Value *V) { MWTaintedPointers.insert(V); }
-
-  void identifyMemoryWrites(Function &F) {
-    for (Value *V : TaintedPointers) {
-      markTaintedIfMemoryWrite(V);
-    }
-  }
-
-  void printTaintedPointers(Function &F) {
-    for (Instruction &I : instructions(F)) {
-      if (TaintedPointers.contains(&I)) {
-        dbgs() << "Tainted: " << I << "\n";
-      }
-    }
-  }
-
-  void printMWTaintedPointers(Function &F) {
-    for (Instruction &I : instructions(F)) {
-      if (MWTaintedPointers.contains(&I)) {
-        dbgs() << "MWTainted: " << I << "\n";
-      }
-    }
-  }
-
-  PreservedAnalyses run(Function &F, FunctionAnalysisManager &FAM) {
-    dbgs() << "Function:\n" << F << "\n\n";
-    identifyTaintedPointers(F);
-    if (PRINTDEBUG) {
-      dbgs() << "BEFORE MEMORY WRITER\n";
-      printTaintedPointers(F);
-    }
-    identifyMemoryWrites(F);
-    if (PRINTDEBUG) {
-      dbgs() << "AFTER MEMORY WRITER\n";
-      printMWTaintedPointers(F);
-    }
-
-    dbgs() << "\n\n";
-
-    return PreservedAnalyses::none();
+    return PreservedAnalyses::all();
   }
 };
 } // namespace
