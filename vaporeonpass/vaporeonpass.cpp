@@ -25,7 +25,7 @@
 
 using namespace llvm;
 
-constexpr bool PRINTDEBUG = true;
+constexpr bool PRINTDEBUG = false;
 
 namespace {
 struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
@@ -223,12 +223,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                                      saved_size, "load_size", LI);
                     instructionsAdded += 2;
                     bounds[LI] = {reload_lower, reload_size};
-                    for (auto load_use : LI->users()) {
-                      if (auto inst_use = dyn_cast<Instruction>(load_use)) {
-                        bounds[inst_use] = {reload_lower, reload_size};
-                        bfs.emplace_back(inst_use);
-                      }
-                    }
+                    bfs.emplace_back(LI);
                   }
                 }
               } else {
