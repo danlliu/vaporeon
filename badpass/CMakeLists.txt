@@ -1,1 +1,1 @@
-add_llvm_pass_plugin(VaporeonPass vaporeonpass.cpp)
+add_llvm_pass_plugin(BadPass badpass.cpp)
