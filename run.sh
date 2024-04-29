@@ -21,6 +21,7 @@ if [ -z "$1" ]; then
         clang -emit-llvm -S "$c_file" -Xclang -disable-O0-optnone -o "$TEST_DIR/$base_name.ll"
 
         opt -load-pass-plugin="$PLUGIN_PATH" -passes="vaporeonpass" "$TEST_DIR/$base_name.ll" -o "$TEST_DIR/$base_name.vaporeon.ll" > "$TEST_DIR/${base_name}_output.txt"
+        clang "$TEST_DIR/$base_name.ll" -o $base_name
         clang "$TEST_DIR/$base_name.vaporeon.ll" -o $base_name.vaporeon
 
         echo "Output for $base_name written to ${base_name}_output.txt"
@@ -33,7 +34,8 @@ else
 
         clang -emit-llvm -S "$c_file" -Xclang -disable-O0-optnone -o "$TEST_DIR/$base_name.ll"
 
-        opt -load-pass-plugin="$PLUGIN_PATH" -passes="vaporeonpass" "$TEST_DIR/$base_name.ll" -o "$TEST_DIR/$base_name.vaporeon.ll" > "$TEST_DIR/${base_name}_output.txt"
+        opt -S -load-pass-plugin="$PLUGIN_PATH" -passes="vaporeonpass" "$TEST_DIR/$base_name.ll" -o "$TEST_DIR/$base_name.vaporeon.ll" > "$TEST_DIR/${base_name}_output.txt"
+        clang "$TEST_DIR/$base_name.ll" -o $base_name
         clang "$TEST_DIR/$base_name.vaporeon.ll" -o $base_name.vaporeon
 
         echo "Output for $base_name written to ${base_name}_output.txt"

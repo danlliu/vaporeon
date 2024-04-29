@@ -43,38 +43,47 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     Type *size_type = llvm::Type::getInt64Ty(F.getContext());
     Instruction *alloca_insertion_point = nullptr;
 
+    int instructionsAdded = 0;
+
     {
-      dbgs() << "Starting VAPOREON pass\n";
+      if (PRINTDEBUG)
+        dbgs() << "Starting VAPOREON pass\n";
       std::vector<AllocaInst *> to_fixup;
 
       // Step 0: incoming parameters
 
       auto insertionPoint = &*F.getEntryBlock().getFirstNonPHIOrDbgOrAlloca();
-      dbgs() << "[Step 0] fix up parameters\n";
+      if (PRINTDEBUG)
+        dbgs() << "[Step 0] fix up parameters\n";
       for (auto &param : F.args()) {
         if (param.getType()->isPointerTy()) {
           Type *ptr_type = param.getType();
-          dbgs() << "ptr_type = " << *ptr_type << "\n";
-          dbgs() << "size_type = " << *size_type << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "ptr_type = " << *ptr_type << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "size_type = " << *size_type << "\n";
           auto fatpointer_type = StructType::create(F.getContext(), "fatptr_t");
           fatpointer_type->setBody({ptr_type, ptr_type, size_type}, false);
 
-          std::vector<User*> users;
-          for (auto u : param.users()) users.push_back(u);
+          std::vector<User *> users;
+          for (auto u : param.users())
+            users.push_back(u);
 
           auto addr = GetElementPtrInst::Create(
               ptr_type, &param,
               {Constant::getIntegerValue(index_type, APInt(32, 1))},
               "unpack_lower", insertionPoint);
           auto lower = new LoadInst(ptr_type, addr, "", insertionPoint);
-          dbgs() << "lower = " << *lower << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "lower = " << *lower << "\n";
 
           auto addr2 = GetElementPtrInst::Create(
               size_type, &param,
               {Constant::getIntegerValue(index_type, APInt(32, 2))},
               "unpack_size", insertionPoint);
           auto size = new LoadInst(size_type, addr2, "", insertionPoint);
-          dbgs() << "size = " << *size << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "size = " << *size << "\n";
 
           auto addr3 = GetElementPtrInst::Create(
               ptr_type, &param,
@@ -82,17 +91,21 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
               "unpack_ptr", insertionPoint);
           auto raw_pointer = new LoadInst(ptr_type, addr3, "", insertionPoint);
 
+          instructionsAdded += 6;
+
           for (auto u : users) {
             u->replaceUsesOfWith(&param, raw_pointer);
           }
 
-          dbgs() << "raw = " << *raw_pointer << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "raw = " << *raw_pointer << "\n";
           bounds[raw_pointer] = {lower, size};
           bfs.emplace_back(raw_pointer);
         }
       }
 
-      dbgs() << "[Step 1] find all allocas\n";
+      if (PRINTDEBUG)
+        dbgs() << "[Step 1] find all allocas\n";
       // Step 1: find all allocas
       for (auto &BB : F) {
         for (auto &I : BB) {
@@ -107,9 +120,10 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                 dbgs() << "instruction allocates " << alloc_size
                        << " element(s)\n";
               auto InsertionPoint = AI->getNextNonDebugInstruction();
-              if (!InsertionPoint) {
-                dbgs() << "No insertion point found...\n";
-              }
+              if (PRINTDEBUG)
+                if (!InsertionPoint) {
+                  dbgs() << "No insertion point found...\n";
+                }
 
               // Store allocated value into lower
               auto idx = Constant::getIntegerValue(
@@ -123,7 +137,8 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
         }
       }
 
-      dbgs() << "[Step 1] add bounds\n";
+      if (PRINTDEBUG)
+        dbgs() << "[Step 1] add bounds\n";
       for (auto AI : to_fixup) {
         auto alloc_type = AI->getAllocatedType();
         auto lowerAlloc = new AllocaInst(
@@ -132,7 +147,8 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                                         alloc_type->getPointerAddressSpace(),
                                         "loc_size", AI);
         localVariableBounds[AI] = {lowerAlloc, sizeAlloc};
-        dbgs() << "Added local variable bounds for " << *AI << "\n";
+        if (PRINTDEBUG)
+          dbgs() << "Added local variable bounds for " << *AI << "\n";
       }
     }
 
@@ -146,12 +162,14 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
       if (visited.contains(front))
         continue;
       visited.insert(front);
-      dbgs() << "front = " << *front << "\n";
+      if (PRINTDEBUG)
+        dbgs() << "front = " << *front << "\n";
 
       auto [lower, size] = bounds[front];
 
       for (auto Use : front->users()) {
-        dbgs() << "found use " << *Use << "\n";
+        if (PRINTDEBUG)
+          dbgs() << "found use " << *Use << "\n";
         if (auto Inst = dyn_cast<Instruction>(Use)) {
           // some instruction is using this value, propagate bounds
           if (Inst->getOpcode() == Instruction::PHI) {
@@ -169,6 +187,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                   bounds[front].lower->getType(), 2, "lower", InsertionPoint);
               PHINode *sizePhi = PHINode::Create(bounds[front].lower->getType(),
                                                  2, "size", InsertionPoint);
+              instructionsAdded += 2;
               lowerPhi->setOperand(0, lower);
               sizePhi->setOperand(0, size);
               bounds[Inst] = {lowerPhi, sizePhi};
@@ -182,13 +201,18 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                 // storing FAT pointer into local variable
                 auto [loc_lower, loc_size] =
                     localVariableBounds[SI->getPointerOperand()];
-                dbgs() << " loc_lower = " << *loc_lower
-                       << ", loc_size = " << *loc_size << "\n";
-                dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
+                if (PRINTDEBUG)
+                  dbgs() << " loc_lower = " << *loc_lower
+                         << ", loc_size = " << *loc_size << "\n";
+                if (PRINTDEBUG)
+                  dbgs() << " lower = " << *lower << ", size = " << *size
+                         << "\n";
                 ourStores.insert(new StoreInst(lower, loc_lower, SI));
                 ourStores.insert(new StoreInst(size, loc_size, SI));
+                instructionsAdded += 2;
                 for (auto use : SI->getPointerOperand()->users()) {
-                  dbgs() << " found use of store " << *use << "\n";
+                  if (PRINTDEBUG)
+                    dbgs() << " found use of store " << *use << "\n";
                   if (auto LI = dyn_cast<LoadInst>(use)) {
                     auto [saved_lower, saved_size] =
                         localVariableBounds[LI->getPointerOperand()];
@@ -197,11 +221,19 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                     auto reload_size =
                         new LoadInst(Type::getInt64Ty(F.getContext()),
                                      saved_size, "load_size", LI);
+                    instructionsAdded += 2;
                     bounds[LI] = {reload_lower, reload_size};
+                    for (auto load_use : LI->users()) {
+                      if (auto inst_use = dyn_cast<Instruction>(load_use)) {
+                        bounds[inst_use] = {reload_lower, reload_size};
+                        bfs.emplace_back(inst_use);
+                      }
+                    }
                   }
                 }
               } else {
-                dbgs() << "how did we get here? " << *SI << "\n";
+                if (PRINTDEBUG)
+                  dbgs() << "how did we get here? " << *SI << "\n";
               }
             } else if (auto CI = dyn_cast<CallInst>(Inst)) {
               for (size_t i = 0; i < CI->arg_size(); ++i) {
@@ -216,6 +248,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                     auto new_param =
                         new AllocaInst(fatpointer_type, F.getAddressSpace(),
                                        "param", alloca_insertion_point);
+                    instructionsAdded += 2;
                     {
                       auto addr = GetElementPtrInst::Create(
                           ptr_type, new_param,
@@ -238,13 +271,16 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
                           "pack_size", CI);
                       ourStores.insert(new StoreInst(bounds[I].size, addr, CI));
                     }
+                    instructionsAdded += 6;
                     CI->setArgOperand(i, new_param);
                   }
                 }
               }
             } else if (!bounds.contains(Inst)) {
-              dbgs() << "propagating scope for " << *Inst << "\n";
-              dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
+              if (PRINTDEBUG)
+                dbgs() << "propagating scope for " << *Inst << "\n";
+              if (PRINTDEBUG)
+                dbgs() << " lower = " << *lower << ", size = " << *size << "\n";
               bounds[Inst] = bounds[front];
               bfs.emplace_back(Inst);
             }
@@ -264,6 +300,7 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
     else
       ReturnInst::Create(F.getContext(),
                          Constant::getNullValue(F.getReturnType()), trapBlock);
+    instructionsAdded += 2;
 
     // Step 4: bounds check on writes
     for (auto &BB : F) {
@@ -271,16 +308,16 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
         if (auto *SI = dyn_cast<StoreInst>(&I)) {
           if (ourStores.contains(SI))
             continue;
-          dbgs() << F << "\n";
-
-          if (PRINTDEBUG)
-            dbgs() << "Found Store " << *SI << "\n";
           auto *ptr = SI->getPointerOperand();
-          dbgs() << "ptr = " << *ptr << "\n";
           if (!bounds.contains(ptr))
             continue;
+          if (PRINTDEBUG)
+            dbgs() << "Found Store " << *SI << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "ptr = " << *ptr << "\n";
           auto [lower, size] = bounds.lookup(ptr);
-          dbgs() << "bounds = " << *lower << " " << *size << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "bounds = " << *lower << " " << *size << "\n";
 
           // if ptr - lower >= size, trap
           auto *ptrInt =
@@ -292,16 +329,20 @@ struct VaporeonPass : public PassInfoMixin<VaporeonPass> {
           auto *cmp = new ICmpInst(SI, ICmpInst::ICMP_UGE, diff, size);
           // split BB
           auto *new_origBB = BB.splitBasicBlockBefore(SI, "");
-          dbgs() << "AFTER SPLITTING" << "\n";
-          dbgs() << F << "\n";
+          if (PRINTDEBUG)
+            dbgs() << "AFTER SPLITTING"
+                   << "\n";
+          if (PRINTDEBUG)
+            dbgs() << F << "\n";
           auto *new_orig_target = new_origBB->getSingleSuccessor();
           auto *br = BranchInst::Create(trapBlock, new_orig_target, cmp);
           ReplaceInstWithInst(new_origBB->getTerminator(), br);
+          instructionsAdded += 5;
         }
       }
     }
 
-    dbgs() << F << "\n";
+    dbgs() << instructionsAdded << " instructions added\n";
 
     return PreservedAnalyses::all();
   }
